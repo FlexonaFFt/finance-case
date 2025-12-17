@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 
-from app.routes.auth import router as auth_router
 from app.config import settings
 from app.dbs.db import Base, engine
 from app.dbs import models  # noqa: F401
+from app.routes import accounts_router, auth_router, transactions_router
 
 app = FastAPI(title=settings.app_name)
 
@@ -19,3 +19,5 @@ def health() -> dict[str, str]:
 
 
 app.include_router(auth_router)
+app.include_router(accounts_router)
+app.include_router(transactions_router)
