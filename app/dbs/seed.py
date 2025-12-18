@@ -1,68 +1,87 @@
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.dbs.models import Account, AccountType, Client, TreasuryAccount, User
+from app.dbs.models import (
+    AccountStatus,
+    InsuranceAccount,
+    Policy,
+    PolicyStatus,
+    User,
+    UserRole,
+)
 from app.security import get_password_hash
 
-SEED_USERS_COUNT = 10
-SEED_TREASURY_COUNT = 10
-SEED_PASSWORD = "password123"
+ADMIN_EMAIL = "admin@example.com"
+ADMIN_PASSWORD = "admin123"
+CLIENT_PASSWORD = "password123"
+CLIENT_COUNT = 5
+ACCOUNT_COUNT = 3
 
 
 def seed_database(db: Session) -> None:
     seeded = False
-    clients: list[Client] = []
 
-    if db.query(Client).count() == 0:
-        users: list[User] = []
-        for i in range(1, SEED_USERS_COUNT + 1):
+    if db.query(User).count() == 0:
+        admin = User(
+            name="Admin",
+            email=ADMIN_EMAIL,
+            phone="+70000000000",
+            role=UserRole.admin,
+            hashed_password=get_password_hash(ADMIN_PASSWORD),
+        )
+        db.add(admin)
+        clients: list[User] = []
+        for i in range(1, CLIENT_COUNT + 1):
             user = User(
-                email=f"user{i}@example.com",
-                hashed_password=get_password_hash(SEED_PASSWORD),
+                name=f"Client {i}",
+                email=f"client{i}@example.com",
+                phone=f"+790000000{i:02d}",
+                role=UserRole.client,
+                hashed_password=get_password_hash(CLIENT_PASSWORD),
             )
             db.add(user)
-            users.append(user)
-        db.flush()
-
-        for i, user in enumerate(users, start=1):
-            client = Client(
-                user_id=user.id,
-                full_name=f"Client {i}",
-                phone=f"+790000000{i:02d}",
-            )
-            db.add(client)
-            clients.append(client)
+            clients.append(user)
         db.flush()
         seeded = True
+    else:
+        clients = db.query(User).filter(User.role == UserRole.client).all()
 
-    if db.query(Account).count() == 0:
-        if not clients:
-            clients = (
-                db.query(Client).order_by(Client.created_at).limit(SEED_USERS_COUNT).all()
-            )
-        for i, client in enumerate(clients, start=1):
-            balance = Decimal("10000.00") * i
-            account = Account(
-                client_id=client.id,
-                name=f"Main Account {i}",
-                account_type=AccountType.checking,
-                currency="RUB",
-                balance=balance,
+    if db.query(InsuranceAccount).count() == 0:
+        statuses = [AccountStatus.small, AccountStatus.medium, AccountStatus.large]
+        balances = {
+            AccountStatus.small: Decimal("50000.00"),
+            AccountStatus.medium: Decimal("200000.00"),
+            AccountStatus.large: Decimal("1000000.00"),
+        }
+        for i in range(1, ACCOUNT_COUNT + 1):
+            status = statuses[(i - 1) % len(statuses)]
+            account = InsuranceAccount(
+                account_number=f"ACC-{i:04d}",
+                balance=balances[status],
+                status=status,
             )
             db.add(account)
+        db.flush()
         seeded = True
 
-    if db.query(TreasuryAccount).count() == 0:
-        for i in range(1, SEED_TREASURY_COUNT + 1):
-            balance = Decimal("1000000.00") * i
-            treasury = TreasuryAccount(
-                name=f"Treasury Account {i}",
-                currency="RUB",
-                balance=balance,
-                purpose="seed",
+    if db.query(Policy).count() == 0 and clients:
+        accounts = db.query(InsuranceAccount).all()
+        today = date.today()
+        for idx, client in enumerate(clients, start=1):
+            account = accounts[(idx - 1) % len(accounts)] if accounts else None
+            policy = Policy(
+                policy_number=f"POL-SEED-{idx:04d}",
+                user_id=client.id,
+                type="health" if idx % 2 == 0 else "auto",
+                start_date=today,
+                end_date=today + timedelta(days=365),
+                premium=Decimal("12000.00") + Decimal(idx * 500),
+                status=PolicyStatus.active,
+                account_id=account.id if account else None,
             )
-            db.add(treasury)
+            db.add(policy)
         seeded = True
 
     if seeded:

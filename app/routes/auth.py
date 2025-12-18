@@ -1,10 +1,8 @@
-from decimal import Decimal
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.dbs.deps import get_current_user, get_db
-from app.dbs.models import Account, AccountType, Client, User
+from app.dbs.models import User, UserRole
 from app.routes.schemas import LoginRequest, RegisterRequest, Token, UserOut
 from app.security import create_access_token, get_password_hash, verify_password
 
@@ -15,8 +13,23 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     return db.query(User).filter(User.email == email).first()
 
 
-def create_user(db: Session, email: str, password: str, *, commit: bool = True) -> User:
-    user = User(email=email, hashed_password=get_password_hash(password))
+def create_user(
+    db: Session,
+    *,
+    name: str,
+    email: str,
+    password: str,
+    phone: str | None = None,
+    role: UserRole = UserRole.client,
+    commit: bool = True,
+) -> User:
+    user = User(
+        name=name,
+        email=email,
+        phone=phone,
+        role=role,
+        hashed_password=get_password_hash(password),
+    )
     db.add(user)
     if commit:
         db.commit()
@@ -39,9 +52,6 @@ def build_access_token(user: User) -> str:
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> UserOut:
-    full_name = payload.email.split("@", maxsplit=1)[0].replace(".", " ").title()
-    if not full_name:
-        full_name = "Client"
     with db.begin():
         existing = get_user_by_email(db, payload.email)
         if existing:
@@ -49,18 +59,15 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> UserOut
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Email already registered",
             )
-        user = create_user(db, payload.email, payload.password, commit=False)
-        client = Client(user_id=user.id, full_name=full_name)
-        db.add(client)
-        db.flush()
-        account = Account(
-            client_id=client.id,
-            name="Main",
-            account_type=AccountType.checking,
-            currency="RUB",
-            balance=Decimal("0.00"),
+        user = create_user(
+            db,
+            name=payload.name,
+            email=payload.email,
+            phone=payload.phone,
+            password=payload.password,
+            role=UserRole.client,
+            commit=False,
         )
-        db.add(account)
     db.refresh(user)
     return user
 

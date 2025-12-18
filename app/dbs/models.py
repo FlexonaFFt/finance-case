@@ -1,216 +1,138 @@
 import enum
-import uuid
+import random
 from decimal import Decimal
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.dbs.db import Base
 
 
-class KYCStatus(enum.Enum):
-    pending = "pending"
-    verified = "verified"
-    rejected = "rejected"
-
-
-class AccountType(enum.Enum):
-    checking = "checking"
-    savings = "savings"
+class UserRole(enum.Enum):
+    admin = "admin"
+    client = "client"
 
 
 class AccountStatus(enum.Enum):
+    small = "small"
+    medium = "medium"
+    large = "large"
+
+
+class PolicyStatus(enum.Enum):
+    draft = "draft"
     active = "active"
-    frozen = "frozen"
-    closed = "closed"
-
-
-class TransferStatus(enum.Enum):
-    pending = "pending"
-    approved = "approved"
-    declined = "declined"
     expired = "expired"
+    cancelled = "cancelled"
 
 
-class LoanStatus(enum.Enum):
-    active = "active"
-    repaid = "repaid"
-    defaulted = "defaulted"
+class ClaimStatus(enum.Enum):
+    open = "open"
+    approved = "approved"
+    rejected = "rejected"
+    paid = "paid"
+
+
+def _random_numeric_id(length: int) -> int:
+    start = 10 ** (length - 1)
+    end = (10**length) - 1
+    return random.randint(start, end)
+
+
+def random_user_id() -> int:
+    return _random_numeric_id(6)
+
+
+def random_account_id() -> int:
+    return _random_numeric_id(5)
+
+
+def random_policy_id() -> int:
+    return _random_numeric_id(5)
+
+
+def random_claim_id() -> int:
+    return _random_numeric_id(9)
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[int] = mapped_column(primary_key=True, default=random_user_id)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
     email: Mapped[str] = mapped_column(
         String(320), unique=True, index=True, nullable=False
     )
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    client: Mapped["Client"] = relationship(back_populates="user", uselist=False)
-
-
-class Client(Base):
-    __tablename__ = "clients"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), unique=True, nullable=False
-    )
-    full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(32))
-    kyc_status: Mapped[KYCStatus] = mapped_column(
-        Enum(KYCStatus), default=KYCStatus.pending, nullable=False
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole), default=UserRole.client, nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    user: Mapped[User] = relationship(back_populates="client")
-    accounts: Mapped[list["Account"]] = relationship(back_populates="client")
+    policies: Mapped[list["Policy"]] = relationship(back_populates="user")
 
 
-class Account(Base):
-    __tablename__ = "accounts"
+class InsuranceAccount(Base):
+    __tablename__ = "insurance_accounts"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    client_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False
-    )
-    name: Mapped[str] = mapped_column(String(120), nullable=False)
-    account_type: Mapped[AccountType] = mapped_column(
-        Enum(AccountType), default=AccountType.checking, nullable=False
-    )
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    balance: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), default=Decimal("0.00"), nullable=False
-    )
-    status: Mapped[AccountStatus] = mapped_column(
-        Enum(AccountStatus), default=AccountStatus.active, nullable=False
-    )
-    transfer_limit: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), default=Decimal("50000.00"), nullable=False
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    client: Mapped[Client] = relationship(back_populates="accounts")
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="account")
-
-
-class TreasuryAccount(Base):
-    __tablename__ = "treasury_accounts"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    name: Mapped[str] = mapped_column(String(120), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True, default=random_account_id)
+    account_number: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     balance: Mapped[Decimal] = mapped_column(
         Numeric(14, 2), default=Decimal("0.00"), nullable=False
     )
-    purpose: Mapped[str | None] = mapped_column(String(200))
+    status: Mapped[AccountStatus] = mapped_column(
+        Enum(AccountStatus), default=AccountStatus.small, nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 
-class TransferRequest(Base):
-    __tablename__ = "transfer_requests"
+class Policy(Base):
+    __tablename__ = "policies"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    id: Mapped[int] = mapped_column(primary_key=True, default=random_policy_id)
+    policy_number: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), nullable=False
     )
-    from_account_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False
+    type: Mapped[str] = mapped_column(String(50), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    premium: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    status: Mapped[PolicyStatus] = mapped_column(
+        Enum(PolicyStatus), default=PolicyStatus.draft, nullable=False
     )
-    to_account_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("insurance_accounts.id"), nullable=True
     )
-    requested_by_client_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("clients.id")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+    user: Mapped[User] = relationship(back_populates="policies")
+    account: Mapped[InsuranceAccount | None] = relationship()
+    claims: Mapped[list["Claim"]] = relationship(back_populates="policy")
+
+
+class Claim(Base):
+    __tablename__ = "claims"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=random_claim_id)
+    policy_id: Mapped[int] = mapped_column(
+        ForeignKey("policies.id"), nullable=False
+    )
+    claim_number: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    date_filed: Mapped[date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    status: Mapped[TransferStatus] = mapped_column(
-        Enum(TransferStatus), default=TransferStatus.pending, nullable=False
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class Transaction(Base):
-    __tablename__ = "transactions"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    account_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False
-    )
-    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    reference_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    reference_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    description: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    account: Mapped[Account] = relationship(back_populates="transactions")
-
-
-class Loan(Base):
-    __tablename__ = "loans"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    client_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("clients.id"), nullable=False
-    )
-    account_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False
-    )
-    principal: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    rate: Mapped[Decimal] = mapped_column(
-        Numeric(5, 4), default=Decimal("0.1000"), nullable=False
-    )
-    term_months: Mapped[int] = mapped_column(Integer, default=12, nullable=False)
-    status: Mapped[LoanStatus] = mapped_column(
-        Enum(LoanStatus), default=LoanStatus.active, nullable=False
+    status: Mapped[ClaimStatus] = mapped_column(
+        Enum(ClaimStatus), default=ClaimStatus.open, nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-
-class LoanPayment(Base):
-    __tablename__ = "loan_payments"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    loan_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("loans.id"), nullable=False
-    )
-    account_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False
-    )
-    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="posted", nullable=False)
-    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    policy: Mapped[Policy] = relationship(back_populates="claims")

@@ -1,13 +1,14 @@
-import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class RegisterRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
     email: EmailStr
     password: str = Field(min_length=8)
+    phone: str = Field(min_length=5, max_length=32)
 
 
 class LoginRequest(BaseModel):
@@ -23,99 +24,66 @@ class Token(BaseModel):
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
-    email: EmailStr
-    created_at: datetime
-
-
-class ClientCreate(BaseModel):
-    full_name: str = Field(min_length=1, max_length=200)
-    phone: str | None = Field(default=None, max_length=32)
-
-
-class ClientOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    user_id: uuid.UUID
-    full_name: str
-    phone: str | None
-    kyc_status: str
-    created_at: datetime
-
-
-class AccountCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
-    account_type: str = Field(default="checking", max_length=32)
-    currency: str = Field(default="RUB", min_length=3, max_length=3)
-    initial_balance: Decimal | None = Field(default=Decimal("0.00"))
-
-
-class AccountOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    client_id: uuid.UUID
+    id: int
     name: str
-    account_type: str
-    currency: str
+    email: EmailStr
+    phone: str | None
+    role: str
+    created_at: datetime
+
+
+class InsuranceAccountCreate(BaseModel):
+    account_number: str = Field(min_length=4, max_length=32)
+    status: str = Field(default="small")
+
+
+class InsuranceAccountOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    account_number: str
     balance: Decimal
     status: str
-    transfer_limit: Decimal
     created_at: datetime
 
 
-class TransferRequestCreate(BaseModel):
-    from_account_id: uuid.UUID
-    to_account_id: uuid.UUID
-    amount: Decimal
-    currency: str = Field(default="RUB", min_length=3, max_length=3)
+class PolicyCreate(BaseModel):
+    user_id: int
+    type: str = Field(min_length=3, max_length=50)
+    start_date: date
+    end_date: date
+    premium: Decimal
+    account_id: int | None = None
 
 
-class TransferRequestOut(BaseModel):
+class PolicyOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
-    from_account_id: uuid.UUID
-    to_account_id: uuid.UUID
-    requested_by_client_id: uuid.UUID | None
-    amount: Decimal
-    currency: str
+    id: int
+    policy_number: str
+    user_id: int
+    type: str
+    start_date: date
+    end_date: date
+    premium: Decimal
     status: str
+    account_id: int | None
     created_at: datetime
-    approved_at: datetime | None
 
 
-class TransactionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    account_id: uuid.UUID
+class ClaimCreate(BaseModel):
+    policy_id: int
     amount: Decimal
-    currency: str
-    reference_type: str
-    reference_id: uuid.UUID | None
-    description: str | None
-    created_at: datetime
+    date_filed: date
 
 
-class LoanCreate(BaseModel):
-    account_id: uuid.UUID
-    principal: Decimal
-    currency: str = Field(default="RUB", min_length=3, max_length=3)
-    rate: Decimal | None = None
-    term_months: int | None = None
-
-
-class LoanOut(BaseModel):
+class ClaimOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
-    client_id: uuid.UUID
-    account_id: uuid.UUID
-    principal: Decimal
-    currency: str
-    rate: Decimal
-    term_months: int
+    id: int
+    claim_number: str
+    policy_id: int
+    date_filed: date
+    amount: Decimal
     status: str
     created_at: datetime

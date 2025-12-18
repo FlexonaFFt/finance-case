@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -7,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dbs.db import SessionLocal
-from app.dbs.models import User
+from app.dbs.models import User, UserRole
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -30,7 +28,7 @@ def get_current_user(
         subject = payload.get("sub")
         if not subject:
             raise ValueError("missing subject")
-        user_id = uuid.UUID(subject)
+        user_id = int(subject)
     except (JWTError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -42,5 +40,13 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
+        )
+    return user
+
+
+def get_current_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
         )
     return user
