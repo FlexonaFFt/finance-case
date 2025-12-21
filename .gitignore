@@ -1,9 +1,6 @@
-docs/architecture.md
 __pycache__/
 *.pyc
 
 .env
 .myenv
 .venv
-
-README.md
