@@ -1,7 +1,8 @@
-__pycache__
+__pycache__/
 *.pyc
 .venv
-.env
 .git
 .gitignore
-.DS_Store
+db/init/*.sql~
+*.log
+node_modules

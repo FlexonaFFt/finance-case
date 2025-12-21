@@ -1,21 +1,13 @@
 from fastapi import FastAPI
 
-from app.routes.auth import router as auth_router
-from app.config import settings
-from app.dbs.db import Base, engine
-from app.dbs import models  # noqa: F401
+from app.routes import router
+from app.dbs import repo
 
-app = FastAPI(title=settings.app_name)
+app = FastAPI(title="Finance Tracker API", version="0.2.0")
+app.include_router(router)
 
 
 @app.on_event("startup")
-def on_startup() -> None:
-    Base.metadata.create_all(bind=engine)
-
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-app.include_router(auth_router)
+def startup_seed() -> None:
+    # Ensure seeded clients have hashed passwords
+    repo.ensure_passwords(default_password="12345abc")
