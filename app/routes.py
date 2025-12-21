@@ -12,12 +12,13 @@ from app.schemas import (
     LoginRequest,
     TokenResponse,
     Transaction,
+    TransactionCreate,
 )
 
 router = APIRouter()
 
 
-@router.post("/auth/login", response_model=TokenResponse, tags=["auth"])
+@router.post("/clients/login", response_model=TokenResponse, tags=["auth"])
 def login(payload: LoginRequest) -> TokenResponse:
     client = repo.get_client_by_email(payload.email)
     if client is None:
@@ -28,7 +29,7 @@ def login(payload: LoginRequest) -> TokenResponse:
     return TokenResponse(access_token=token)
 
 
-@router.post("/register", response_model=Client, tags=["clients"])
+@router.post("/clients/register", response_model=Client, tags=["clients"])
 def create_client(payload: ClientCreate) -> Client:
     if payload.email and repo.get_client_by_email(payload.email):
         raise HTTPException(status_code=400, detail="Email already exists")
@@ -68,3 +69,22 @@ def list_transactions(account_id: str, current=Depends(get_current_client)) -> l
         raise HTTPException(status_code=403, detail="Forbidden")
     txs = repo.list_transactions(account_id)
     return [Transaction(**tx) for tx in txs]
+
+
+@router.post("/transactions", response_model=Transaction, tags=["accounts"])
+def create_transaction(payload: TransactionCreate, current=Depends(get_current_client)) -> Transaction:
+    account = repo.get_account_by_id(payload.account_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if account["client_id"] != current["id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if account["currency"] != payload.currency:
+        raise HTTPException(status_code=400, detail="Currency mismatch")
+    signed_amount = payload.amount_minor
+    tx = repo.create_transaction(
+        account_id=payload.account_id,
+        amount_minor=signed_amount,
+        currency=payload.currency,
+        description=payload.description,
+    )
+    return Transaction(**tx)

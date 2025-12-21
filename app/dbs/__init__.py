@@ -6,4 +6,5 @@ from app.dbs.repo import (  # noqa: F401
     get_client_by_id,
     list_accounts_by_client,
     list_transactions,
+    create_transaction,
 )

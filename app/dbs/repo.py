@@ -3,9 +3,11 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 import psycopg
+from psycopg import errors
 
 from app.dbs.postgres import get_conn
-from app.utils.ids import generate_short_id
+from app.utils.ids import generate_account_id, generate_short_id
+from app.core.security import hash_password
 
 
 def create_client(name: str, email: str, password_hash: str) -> dict:
@@ -86,17 +88,24 @@ def list_accounts_by_client(client_id: str) -> List[dict]:
 
 
 def create_account(client_id: str, currency: str, initial_balance: int) -> dict:
-    account_id = generate_short_id()
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO accounts (id, client_id, currency, balance_minor, created_at)
-                VALUES (%s, %s, %s, %s, NOW())
-                """,
-                (account_id, client_id, currency, initial_balance),
-            )
-            _seed_transactions(conn, account_id, currency)
+    for _ in range(10):
+        account_id = generate_account_id()
+        try:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO accounts (id, client_id, currency, balance_minor, created_at)
+                        VALUES (%s, %s, %s, %s, NOW())
+                        """,
+                        (account_id, client_id, currency, initial_balance),
+                    )
+                    _seed_transactions(conn, account_id, currency)
+            break
+        except errors.UniqueViolation:
+            continue
+    else:
+        raise RuntimeError("Could not generate unique account number after multiple attempts")
     return get_account_by_id(account_id)
 
 
@@ -165,6 +174,44 @@ def _seed_transactions(conn: psycopg.Connection, account_id: str, currency: str)
                 datetime.utcnow(),
             )
         )
+
+
+def create_transaction(account_id: str, amount_minor: int, currency: str, description: str) -> dict:
+    tx_id = generate_short_id()
+    now = datetime.utcnow()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT currency, balance_minor FROM accounts WHERE id = %s FOR UPDATE",
+                (account_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                raise ValueError("Account not found")
+            account_currency, balance_minor = row
+            if account_currency != currency:
+                raise ValueError("Currency mismatch")
+            new_balance = balance_minor + amount_minor
+            cur.execute(
+                """
+                INSERT INTO transactions (id, account_id, amount_minor, currency, description, occurred_at, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (tx_id, account_id, amount_minor, currency, description, now, now),
+            )
+            cur.execute(
+                "UPDATE accounts SET balance_minor = %s WHERE id = %s",
+                (new_balance, account_id),
+            )
+    return {
+        "id": tx_id,
+        "account_id": account_id,
+        "amount_minor": amount_minor,
+        "currency": currency,
+        "description": description,
+        "occurred_at": now,
+        "created_at": now,
+    }
     if not txs:
         return
     with conn.cursor() as cur:
@@ -175,3 +222,14 @@ def _seed_transactions(conn: psycopg.Connection, account_id: str, currency: str)
             """,
             txs,
         )
+
+
+def ensure_passwords(default_password: str) -> None:
+    """Fill missing password_hash for seeded clients."""
+    hashed = hash_password(default_password)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE clients SET password_hash = %s WHERE password_hash IS NULL",
+                (hashed,),
+            )

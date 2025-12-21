@@ -50,3 +50,10 @@ class Client(BaseModel):
     email: Optional[str] = None
     created_at: datetime
     accounts: List[Account] = Field(default_factory=list)
+
+
+class TransactionCreate(BaseModel):
+    account_id: str
+    amount_minor: int = Field(description="Amount in minor units; positive=deposit, negative=withdraw")
+    currency: str
+    description: str

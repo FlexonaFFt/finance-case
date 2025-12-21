@@ -23,3 +23,17 @@ def make_unique(generator: Callable[[], str], existing: Set[str]) -> str:
     while candidate in existing:
         candidate = generator()
     return candidate
+
+
+def generate_account_id() -> str:
+    """
+    Generates account id like 0000-abcd-000-000 (digits-letters-digits-digits).
+    """
+    import random
+    import string
+
+    part1 = f"{random.randint(0, 9999):04d}"
+    part2 = "".join(random.choices(string.ascii_lowercase, k=4))
+    part3 = f"{random.randint(0, 999):03d}"
+    part4 = f"{random.randint(0, 999):03d}"
+    return f"{part1}-{part2}-{part3}-{part4}"
