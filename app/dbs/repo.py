@@ -1,4 +1,5 @@
 import random
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -8,6 +9,9 @@ from psycopg import errors
 from app.dbs.postgres import get_conn
 from app.utils.ids import generate_account_id, generate_short_id
 from app.core.security import hash_password
+from app.dbs.mongo import transfers_collection
+
+logger = logging.getLogger(__name__)
 
 
 def create_client(name: str, email: str, password_hash: str) -> dict:
@@ -211,6 +215,99 @@ def create_transaction(account_id: str, amount_minor: int, currency: str, descri
         "currency": currency,
         "description": description,
         "occurred_at": now,
+        "created_at": now,
+    }
+
+
+def create_transfer(from_account_id: str, to_account_id: str, amount_minor: int, currency: str, description: str) -> dict:
+    """
+    Move money between accounts with same currency. Creates transfer row and two transactions (debit/credit).
+    """
+    transfer_id = generate_short_id()
+    now = datetime.utcnow()
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Lock both accounts
+            cur.execute(
+                "SELECT id, currency, balance_minor FROM accounts WHERE id IN (%s,%s) ORDER BY id FOR UPDATE",
+                (from_account_id, to_account_id),
+            )
+            rows = cur.fetchall()
+            if len(rows) != 2:
+                raise ValueError("One of the accounts not found")
+            accounts = {r[0]: {"currency": r[1], "balance": r[2]} for r in rows}
+            if accounts[from_account_id]["currency"] != accounts[to_account_id]["currency"]:
+                raise ValueError("Currency mismatch between accounts")
+            if accounts[from_account_id]["currency"] != currency:
+                raise ValueError("Currency mismatch with payload")
+            new_balance_from = accounts[from_account_id]["balance"] - amount_minor
+            new_balance_to = accounts[to_account_id]["balance"] + amount_minor
+            # Insert transfer
+            cur.execute(
+                """
+                INSERT INTO transfers (id, from_account_id, to_account_id, amount_minor, currency, description, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                """,
+                (transfer_id, from_account_id, to_account_id, amount_minor, currency, description, now),
+            )
+            # Insert debit and credit transactions
+            cur.executemany(
+                """
+                INSERT INTO transactions (id, account_id, amount_minor, currency, description, occurred_at, created_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                """,
+                [
+                    (
+                        generate_short_id(),
+                        from_account_id,
+                        -amount_minor,
+                        currency,
+                        f"Transfer to {to_account_id}. {description}".strip(),
+                        now,
+                        now,
+                    ),
+                    (
+                        generate_short_id(),
+                        to_account_id,
+                        amount_minor,
+                        currency,
+                        f"Transfer from {from_account_id}. {description}".strip(),
+                        now,
+                        now,
+                    ),
+                ],
+            )
+            # Update balances
+            cur.execute(
+                "UPDATE accounts SET balance_minor = %s WHERE id = %s",
+                (new_balance_from, from_account_id),
+            )
+            cur.execute(
+                "UPDATE accounts SET balance_minor = %s WHERE id = %s",
+                (new_balance_to, to_account_id),
+            )
+    # Log to Mongo (best-effort)
+    try:
+        transfers_collection.insert_one(
+            {
+                "_id": transfer_id,
+                "from_account_id": from_account_id,
+                "to_account_id": to_account_id,
+                "amount_minor": amount_minor,
+                "currency": currency,
+                "description": description,
+                "created_at": now,
+            }
+        )
+    except Exception:
+        logger.warning("Failed to log transfer %s to Mongo", transfer_id)
+    return {
+        "id": transfer_id,
+        "from_account_id": from_account_id,
+        "to_account_id": to_account_id,
+        "amount_minor": amount_minor,
+        "currency": currency,
+        "description": description,
         "created_at": now,
     }
     if not txs:

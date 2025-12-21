@@ -37,3 +37,13 @@ CREATE TABLE IF NOT EXISTS transactions (
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS transfers (
+    id TEXT PRIMARY KEY DEFAULT gen_short_id(),
+    from_account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    to_account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    amount_minor BIGINT NOT NULL,
+    currency TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

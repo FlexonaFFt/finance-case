@@ -13,6 +13,7 @@ from app.schemas import (
     TokenResponse,
     Transaction,
     TransactionCreate,
+    TransferCreate,
 )
 
 router = APIRouter()
@@ -88,3 +89,23 @@ def create_transaction(payload: TransactionCreate, current=Depends(get_current_c
         description=payload.description,
     )
     return Transaction(**tx)
+
+
+@router.post("/transfers", tags=["accounts"])
+def create_transfer(payload: TransferCreate, current=Depends(get_current_client)):
+    source = repo.get_account_by_id(payload.from_account_id)
+    dest = repo.get_account_by_id(payload.to_account_id)
+    if source is None or dest is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    if source["client_id"] != current["id"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if source["currency"] != payload.currency or dest["currency"] != payload.currency:
+        raise HTTPException(status_code=400, detail="Currency mismatch")
+    transfer = repo.create_transfer(
+        from_account_id=payload.from_account_id,
+        to_account_id=payload.to_account_id,
+        amount_minor=payload.amount_minor,
+        currency=payload.currency,
+        description=payload.description,
+    )
+    return transfer

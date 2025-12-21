@@ -57,3 +57,11 @@ class TransactionCreate(BaseModel):
     amount_minor: int = Field(description="Amount in minor units; positive=deposit, negative=withdraw")
     currency: str
     description: str
+
+
+class TransferCreate(BaseModel):
+    from_account_id: str
+    to_account_id: str
+    amount_minor: int = Field(gt=0, description="Positive amount in minor units")
+    currency: str
+    description: str = ""

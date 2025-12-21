@@ -182,7 +182,7 @@ async def show_accounts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     buttons: List[List[KeyboardButton]] = []
     cache: Dict[str, dict] = {}
     for acc in accounts[:5]:
-        tail = acc["id"][-4:]
+        tail = acc["id"][-3:]
         cache[tail] = acc
         buttons.append([KeyboardButton(f"Счет {tail}")])
     buttons.append([KeyboardButton("Назад")])
@@ -218,9 +218,9 @@ async def deposit_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if not accounts:
         await update.message.reply_text("Нет счетов.", reply_markup=main_menu_keyboard())
         return MAIN_MENU
-    buttons = [[KeyboardButton(acc["id"][-4:])] for acc in accounts[:5]]
+    buttons = [[KeyboardButton(acc["id"][-3:])] for acc in accounts[:5]]
     buttons.append([KeyboardButton("Назад")])
-    context.user_data["accounts_cache"] = {acc["id"][-4:]: acc for acc in accounts[:5]}
+    context.user_data["accounts_cache"] = {acc["id"][-3:]: acc for acc in accounts[:5]}
     await update.message.reply_text("Выбери счет для пополнения:", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
     return DEPOSIT_CHOOSE
 
@@ -294,9 +294,9 @@ async def transfer_dest(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     if not accounts:
         await update.message.reply_text("Нет счетов.", reply_markup=main_menu_keyboard())
         return MAIN_MENU
-    buttons = [[KeyboardButton(acc["id"][-4:])] for acc in accounts[:5]]
+    buttons = [[KeyboardButton(acc["id"][-3:])] for acc in accounts[:5]]
     buttons.append([KeyboardButton("Назад")])
-    context.user_data["accounts_cache"] = {acc["id"][-4:]: acc for acc in accounts[:5]}
+    context.user_data["accounts_cache"] = {acc["id"][-3:]: acc for acc in accounts[:5]}
     await update.message.reply_text("Выбери свой счет-источник:", reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True))
     return TRANSFER_SOURCE
 
@@ -338,10 +338,11 @@ async def transfer_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     desc_extra = parts[1] if len(parts) > 1 else ""
     desc = f"Перевод на {dest}. {desc_extra}".strip()
     resp = api_post(
-        "/transactions",
+        "/transfers",
         json={
-            "account_id": acc["id"],
-            "amount_minor": -amount,
+            "from_account_id": acc["id"],
+            "to_account_id": dest,
+            "amount_minor": amount,
             "currency": acc["currency"],
             "description": desc,
         },
@@ -350,7 +351,7 @@ async def transfer_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if resp.status_code >= 400:
         await update.message.reply_text(f"Ошибка: {resp.text}", reply_markup=back_keyboard())
         return TRANSFER_AMOUNT
-    await update.message.reply_text("Перевод проведен (списание).", reply_markup=main_menu_keyboard())
+    await update.message.reply_text("Перевод создан (списание + зачисление).", reply_markup=main_menu_keyboard())
     return MAIN_MENU
 
 
