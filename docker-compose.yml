@@ -40,5 +40,18 @@ services:
       - "8000:8000"
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    container_name: finance-bot
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:?Bot token required}
+      API_BASE_URL: ${API_BASE_URL:-http://api:8000}
+
 volumes:
   postgres_data:

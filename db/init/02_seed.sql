@@ -7,22 +7,22 @@ WITH c AS (
 ),
 a1 AS (
     INSERT INTO accounts (id, client_id, currency, balance_minor)
-    VALUES ('0000-acme-000-001', (SELECT id FROM c WHERE name='Acme Corp'), 'USD', 152000)
+    VALUES ('0000-acme-000-001', (SELECT id FROM c WHERE name='Acme Corp'), 'USD', 9500)
     RETURNING id
 ),
 a2 AS (
     INSERT INTO accounts (id, client_id, currency, balance_minor)
-    VALUES ('0000-acme-000-002', (SELECT id FROM c WHERE name='Acme Corp'), 'EUR', 82000)
+    VALUES ('0000-acme-000-002', (SELECT id FROM c WHERE name='Acme Corp'), 'RUB', 82000)
     RETURNING id
 ),
 a3 AS (
     INSERT INTO accounts (id, client_id, currency, balance_minor)
-    VALUES ('0000-orbt-000-003', (SELECT id FROM c WHERE name='Orbit Retail'), 'USD', 423500)
+    VALUES ('0000-orbt-000-003', (SELECT id FROM c WHERE name='Orbit Retail'), 'USD', 8700)
     RETURNING id
 ),
 a4 AS (
     INSERT INTO accounts (id, client_id, currency, balance_minor)
-    VALUES ('0000-sier-000-004', (SELECT id FROM c WHERE name='Sierra Labs'), 'GBP', 98500)
+    VALUES ('0000-sier-000-004', (SELECT id FROM c WHERE name='Sierra Labs'), 'RUB', 98500)
     RETURNING id
 )
 INSERT INTO transactions (account_id, amount_minor, currency, description, occurred_at)

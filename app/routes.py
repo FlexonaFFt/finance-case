@@ -35,13 +35,13 @@ def create_client(payload: ClientCreate) -> Client:
         raise HTTPException(status_code=400, detail="Email already exists")
     password_hash = hash_password(payload.password)
     client = repo.create_client(name=payload.name, email=payload.email, password_hash=password_hash)
-    # Auto-create 1-3 accounts with random balances
-    for _ in range(random.randint(1, 3)):
-        repo.create_account(
-            client_id=client["id"],
-            currency=random.choice(["USD", "EUR", "GBP"]),
-            initial_balance=random.randint(5_000, 200_000),
-        )
+    # Auto-create a single empty RUB account for the new client
+    repo.create_account(
+        client_id=client["id"],
+        currency="RUB",
+        initial_balance=0,
+        seed=False,
+    )
     accounts = [Account(**acc) for acc in repo.list_accounts_by_client(client["id"])]
     return Client(**client, accounts=accounts)
 

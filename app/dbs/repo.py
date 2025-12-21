@@ -87,7 +87,7 @@ def list_accounts_by_client(client_id: str) -> List[dict]:
             ]
 
 
-def create_account(client_id: str, currency: str, initial_balance: int) -> dict:
+def create_account(client_id: str, currency: str, initial_balance: int, seed: bool = True) -> dict:
     for _ in range(10):
         account_id = generate_account_id()
         try:
@@ -100,7 +100,8 @@ def create_account(client_id: str, currency: str, initial_balance: int) -> dict:
                         """,
                         (account_id, client_id, currency, initial_balance),
                     )
-                    _seed_transactions(conn, account_id, currency)
+                    if seed:
+                        _seed_transactions(conn, account_id, currency)
             break
         except errors.UniqueViolation:
             continue
